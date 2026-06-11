@@ -1,0 +1,23 @@
+# Netlify headers — long-lived immutable caching for static assets.
+# Fonts and icons never change content under the same name, so the browser
+# can keep them for a year without revalidating (instant repeat launches).
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ttf
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker must always be revalidated so new deploys ship promptly.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# HTML stays network-first (handled by the SW); keep it revalidating too.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
