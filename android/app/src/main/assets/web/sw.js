@@ -3,7 +3,7 @@
    other local assets are cache-first (refreshed in the background).
    API responses (Sefaria/Hebcal/Google) are cross-origin and handled
    separately by the in-app localStorage cache (jfetch). */
-const CACHE = 'lishkod-v16';
+const CACHE = 'lishkod-v17';
 // Precache only the shell + the DEFAULT font (Keter YG). The other 5 fonts are
 // large and only used if the reader picks them in settings, so they're cached
 // lazily on first use by the cache-first fetch handler below — this cuts the

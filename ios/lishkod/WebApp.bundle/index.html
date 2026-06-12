@@ -992,6 +992,11 @@ body.contrast .toggle.on::after{background:#000}
 .fam-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
 .fam-row.editing{background:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:8px;padding-inline:8px}
 .fam-del{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0;font-size:13px}
+.fam-move{
+  background:var(--surface);border:1px solid var(--border);color:var(--accent);
+  border-radius:8px;width:28px;height:28px;cursor:pointer;flex-shrink:0;font-size:13px;
+}
+.fam-move:disabled{opacity:.32;cursor:default;color:var(--muted)}
 .fam-info{display:flex;flex-direction:column;gap:2px;min-width:0}
 .fam-meta{font-size:12px;color:var(--muted)}
 .family-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
@@ -3473,10 +3478,9 @@ function familyChapters(member,target){
   const chapters=isBirthday?[...new Set([cap(age),cap(age+1)])]:[cap(age+1)];
   return {chapters,isBirthday};
 }
-// Family members ordered youngest → oldest (by age), keeping each one's original index.
+// Family members keep the user's manual order, matching the Settings list.
 function familyByAge(target){
-  return (settings.familyTehillim||[]).map((m,i)=>({m,i}))
-    .sort((a,b)=>familyAgeInfo(a.m,target).age-familyAgeInfo(b.m,target).age);
+  return (settings.familyTehillim||[]).map((m,i)=>({m,i}));
 }
 async function renderFamilyTehillim(target){
   const order=familyByAge(target);
@@ -3528,6 +3532,8 @@ function renderFamilyList(){
     let h=`<div class="fam-row${i===famEditIdx?' editing':''}">
       <button class="fam-del" onclick="removeFamilyMember(${i})" aria-label="מחק">✕</button>
       <button class="pen-btn" onclick="editFamilyMember(${i})" title="ערוך" aria-label="ערוך" data-ic="pencil"></button>
+      <button class="fam-move" onclick="moveFamilyMember(${i},-1)" ${i===0?'disabled':''} aria-label="העבר למעלה">▲</button>
+      <button class="fam-move" onclick="moveFamilyMember(${i},1)" ${i===list.length-1?'disabled':''} aria-label="העבר למטה">▼</button>
       <div class="fam-info"><b>${escHtml(m.name)}</b><span class="fam-meta">${numToHebG(m.d)} ${HEB_MONTH_LABEL[m.m]||m.m} · פרק ${chTxt}${isBirthday?' 🎂':''}</span></div>
     </div>`;
     if(i===famEditIdx){                  // inline editor, right beneath this row
@@ -3556,6 +3562,17 @@ function editFamilyMember(i){
   if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function cancelFamilyEdit(){famEditIdx=-1;renderFamilyList();}
+function moveFamilyMember(i,dir){
+  const list=settings.familyTehillim||[];
+  const to=i+dir;
+  if(to<0||to>=list.length)return;
+  [list[i],list[to]]=[list[to],list[i]];
+  if(famEditIdx===i)famEditIdx=to;
+  else if(famEditIdx===to)famEditIdx=i;
+  saveSettings();
+  renderFamilyList();
+  refreshPersonalContent();
+}
 function rebuildEditMonths(){
   const yEl=document.getElementById('fam-edit-year'),mEl=document.getElementById('fam-edit-month');
   if(!yEl||!mEl)return;
