@@ -3274,15 +3274,18 @@ const PERSONAL_PSALM_LIMIT=20;
 let personalPickerOpen=false;
 
 // (Collapsed) chapter-selection grid. The pen icon lives in the card header.
-function buildInlinePsalmPicker(){
+function buildPersonalPsalmOrder(){
   const sel=settings.personalPsalms;
-  const order=sel.length?`<div class="ps-order-list">
+  return sel.length?`<div class="ps-order-list" id="personal-ps-order">
     ${sel.map((n,i)=>`<div class="ps-order-row">
       <span class="ps-order-title">פרק ${HEB_NUMS[n]||numToHeb(n)}</span>
       <button class="ps-order-btn" onclick="movePersonalPsalm(${i},-1,event)" ${i===0?'disabled':''} aria-label="העבר למעלה">▲</button>
       <button class="ps-order-btn" onclick="movePersonalPsalm(${i},1,event)" ${i===sel.length-1?'disabled':''} aria-label="העבר למטה">▼</button>
     </div>`).join('')}
   </div>`:'';
+}
+function buildInlinePsalmPicker(){
+  const sel=settings.personalPsalms;
   let g='';
   for(let i=1;i<=150;i++){
     const on=sel.includes(i);
@@ -3292,7 +3295,6 @@ function buildInlinePsalmPicker(){
       <div style="text-align:center;padding:2px 0 8px">
         <a href="#" class="biur-link" onclick="openFamilySettings(event)">🎂 להגדרת ימי הולדת</a>
       </div>
-      ${order}
       <div class="psalm-grid">${g}</div>
   </div>`;
 }
@@ -3350,6 +3352,10 @@ function movePersonalPsalm(index,dir,e){
 function refreshPersonalPicker(){
   const wrap=document.getElementById('psalm-picker-wrap');
   if(!wrap)return;
+  const order=document.getElementById('personal-ps-order');
+  const nextOrder=buildPersonalPsalmOrder();
+  if(order)order.outerHTML=nextOrder;
+  else if(nextOrder)wrap.insertAdjacentHTML('beforebegin',nextOrder);
   const tmp=document.createElement('div');
   tmp.innerHTML=buildInlinePsalmPicker();
   wrap.replaceWith(tmp.firstElementChild);
@@ -3951,7 +3957,7 @@ async function loadPersonalText(){
 
 async function loadPersonal(){
   const body=document.getElementById('body-personal');
-  body.innerHTML=buildInlinePsalmPicker()+'<div id="personal-text-area"></div>';
+  body.innerHTML=buildPersonalPsalmOrder()+buildInlinePsalmPicker()+'<div id="personal-text-area"></div>';
   loadPersonalText();
 }
 
