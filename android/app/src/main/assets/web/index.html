@@ -936,6 +936,17 @@ body.contrast .toggle.on::after{background:#000}
 .ps-btn.selected{
   background:#c9a84c25;border-color:var(--accent);color:var(--accent);font-weight:700;
 }
+.ps-order-list{display:flex;flex-direction:column;gap:6px;margin:2px 0 12px}
+.ps-order-row{
+  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;
+  padding:7px 9px;background:var(--comment-bg);border:1px solid var(--border);border-radius:9px;
+}
+.ps-order-title{font-size:13px;color:var(--text);font-weight:700}
+.ps-order-btn{
+  width:30px;height:30px;border:1px solid var(--border);border-radius:8px;
+  background:var(--surface);color:var(--accent);font-size:15px;cursor:pointer;
+}
+.ps-order-btn:disabled{opacity:.32;cursor:default;color:var(--muted)}
 
 /* ── Commentary selector (inline in Tanakh row) ── */
 .comm-selector{
@@ -3265,6 +3276,13 @@ let personalPickerOpen=false;
 // (Collapsed) chapter-selection grid. The pen icon lives in the card header.
 function buildInlinePsalmPicker(){
   const sel=settings.personalPsalms;
+  const order=sel.length?`<div class="ps-order-list">
+    ${sel.map((n,i)=>`<div class="ps-order-row">
+      <span class="ps-order-title">פרק ${HEB_NUMS[n]||numToHeb(n)}</span>
+      <button class="ps-order-btn" onclick="movePersonalPsalm(${i},-1,event)" ${i===0?'disabled':''} aria-label="העבר למעלה">▲</button>
+      <button class="ps-order-btn" onclick="movePersonalPsalm(${i},1,event)" ${i===sel.length-1?'disabled':''} aria-label="העבר למטה">▼</button>
+    </div>`).join('')}
+  </div>`:'';
   let g='';
   for(let i=1;i<=150;i++){
     const on=sel.includes(i);
@@ -3274,6 +3292,7 @@ function buildInlinePsalmPicker(){
       <div style="text-align:center;padding:2px 0 8px">
         <a href="#" class="biur-link" onclick="openFamilySettings(event)">🎂 להגדרת ימי הולדת</a>
       </div>
+      ${order}
       <div class="psalm-grid">${g}</div>
   </div>`;
 }
@@ -3309,11 +3328,31 @@ function toggleInlinePsalm(n,btn){
   const idx=settings.personalPsalms.indexOf(n);
   if(idx>=0){settings.personalPsalms.splice(idx,1);btn.classList.remove('selected');}
   else if(settings.personalPsalms.length<PERSONAL_PSALM_LIMIT){settings.personalPsalms.push(n);btn.classList.add('selected');}
-  settings.personalPsalms.sort((a,b)=>a-b);
   saveSettings();
   updatePersonalPsalmsRow();
+  refreshPersonalPicker();
   loadPersonalText();
   refreshDailyTehillimIfPersonalPrepended();
+}
+
+function movePersonalPsalm(index,dir,e){
+  if(e)e.stopPropagation();
+  const arr=settings.personalPsalms||[];
+  const to=index+dir;
+  if(to<0||to>=arr.length)return;
+  [arr[index],arr[to]]=[arr[to],arr[index]];
+  saveSettings();
+  refreshPersonalPicker();
+  loadPersonalText();
+  refreshDailyTehillimIfPersonalPrepended();
+}
+
+function refreshPersonalPicker(){
+  const wrap=document.getElementById('psalm-picker-wrap');
+  if(!wrap)return;
+  const tmp=document.createElement('div');
+  tmp.innerHTML=buildInlinePsalmPicker();
+  wrap.replaceWith(tmp.firstElementChild);
 }
 
 // ── Tikkun HaKlali + weekday Tehillim (toggle buttons in the personal card) ──
@@ -3665,7 +3704,7 @@ function applyBackupObject(obj){
     if(!x||!x.name)continue;const k=famKey(x);if(famSeen.has(k))continue;famSeen.add(k);famOut.push(x);
   }
   merged.familyTehillim=famOut;
-  merged.personalPsalms=[...new Set([...(settings.personalPsalms||[]),...(incoming.personalPsalms||[])])].sort((a,b)=>a-b);
+  merged.personalPsalms=[...new Set([...(settings.personalPsalms||[]),...(incoming.personalPsalms||[])])];
   {  // union reminders (mixed "HH:MM" strings + {sunset:N} objects), deduped by value
     const seen=new Set(),out=[];
     for(const e of [...(settings.reminders||[]),...(incoming.reminders||[])]){
