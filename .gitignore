@@ -1,2 +1,6 @@
 .DS_Store
 .claude/
+build/
+lishkod/.git/
+xcuserdata/
+*.xcuserstate
