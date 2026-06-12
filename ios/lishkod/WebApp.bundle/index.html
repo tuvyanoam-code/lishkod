@@ -1234,6 +1234,15 @@ body.reader-active #reader-chrome{display:block}
     <div class="time-preview">כשהמתג מכובה סדר פרשות השבוע הוא כפי הנהוג בארצנו הקדושה</div>
   </div>
 
+  <div class="settings-section" data-cat="learning">
+    <h3>תהלים יומי</h3>
+    <div class="toggle-row">
+      <label>הצג את התהלים האישי לפני התהלים היומי</label>
+      <button class="toggle" id="toggle-personal-before-daily" onclick="togglePersonalBeforeDailyTehillim()"></button>
+    </div>
+    <div class="time-preview">כשהמתג פעיל, לחיצה על “תהלים יומי” תציג קודם את הפרקים האישיים שהגדרת, ואחריהם את החלוקה היומית.</div>
+  </div>
+
   <!-- 10. Family Tehillim by age -->
   <div class="settings-section" data-cat="learning">
     <h3>תהלים לפי ימי הולדת</h3>
@@ -1964,6 +1973,7 @@ const DEFAULT_SETTINGS={
   commentary:'steinsaltz', cantillation:true, personalPsalms:[],
   tikkunKlali:false,    // show Tikkun HaKlali (10 psalms) before personal chapters
   tehillimWeekday:false,// show the weekday division of Tehillim before personal chapters
+  personalBeforeDailyTehillim:false, // prepend personal Psalms to the daily Tehillim reader
   familyTehillim:[],    // [{name, y, m, d}] Hebrew birthdate → chapter by age (year of life)
   dayStartTime: 2,   // hour (0-5), 'sunset', or 'sunrise'
   fontSize: 1,       // text-size multiplier (0.85 / 1 / 1.18 / 1.4)
@@ -2182,6 +2192,8 @@ function syncSettingsUI(){
   document.getElementById('btn-contrast').classList.toggle('active',settings.theme==='contrast');
   document.getElementById('toggle-cantillation').classList.toggle('on',settings.cantillation);
   document.getElementById('toggle-diaspora').classList.toggle('on',settings.diaspora);
+  const pbd=document.getElementById('toggle-personal-before-daily');
+  if(pbd)pbd.classList.toggle('on',!!settings.personalBeforeDailyTehillim);
 }
 
 function buildFontGrid(gridId,target){
@@ -2259,6 +2271,20 @@ function toggleDiaspora(){
   // reading order changed → refresh the parasha card, its sub-label and catch-up
   resetSection('parasha');
   render();
+}
+
+function togglePersonalBeforeDailyTehillim(){
+  settings.personalBeforeDailyTehillim=!settings.personalBeforeDailyTehillim;
+  saveSettings();
+  const btn=document.getElementById('toggle-personal-before-daily');
+  if(btn)btn.classList.toggle('on',!!settings.personalBeforeDailyTehillim);
+  const wasOpen=!!sectionState['tehillim'];
+  if(wasOpen){
+    document.getElementById('body-tehillim').innerHTML='<div class="sk-lines"><span class="sk sk-line sk-t"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span></div>';
+    Promise.resolve(loadTehillim()).then(()=>afterSectionRender('tehillim'));
+  }else{
+    resetSection('tehillim');
+  }
 }
 
 function updatePersonalPsalmsRow(){
@@ -3210,6 +3236,13 @@ async function loadTehillim(){
     const startCh=slot.vFrom?119:slot.from;
     const chapters=await loadPsalmsText(slot);
     let html='';
+    const personalPrefix=settings.personalBeforeDailyTehillim
+      ? await renderPersonalTehillimContent(target,{includeSectionTitle:true})
+      : '';
+    if(personalPrefix){
+      html+=personalPrefix;
+      html+='<div class="tk-section-title">תהלים יומי</div>';
+    }
     chapters.forEach((ch,i)=>{
       const chNum=startCh+i;
       if(chapters.length>1||slot.vFrom){
@@ -3280,6 +3313,7 @@ function toggleInlinePsalm(n,btn){
   saveSettings();
   updatePersonalPsalmsRow();
   loadPersonalText();
+  refreshDailyTehillimIfPersonalPrepended();
 }
 
 // ── Tikkun HaKlali + weekday Tehillim (toggle buttons in the personal card) ──
@@ -3323,15 +3357,32 @@ async function renderWeekdayTehillim(){
   const nums=[];for(let p=from;p<=to;p++)nums.push(p);
   return `<div class="tk-section-title">${weekdayTehillimLabel()}</div>`+await renderPsalmRange(nums);
 }
+async function renderPersonalTehillimContent(target,{includeSectionTitle=false}={}){
+  const showKlali=!!settings.tikkunKlali, showWeekday=!!settings.tehillimWeekday;
+  const family=settings.familyTehillim||[];
+  const personal=settings.personalPsalms||[];
+  if(!personal.length && !showKlali && !showWeekday && !family.length)return '';
+  let html=includeSectionTitle?'<div class="tk-section-title">תהלים אישי</div>':'';
+  if(showKlali)html+=await renderTikkunKlali();
+  if(showWeekday)html+=await renderWeekdayTehillim();
+  if(family.length)html+=await renderFamilyTehillim(target);
+  if(personal.length){
+    if(showKlali||showWeekday||family.length)html+='<div class="tk-section-title">פרקים אישיים</div>';
+    html+=await renderPsalmRange(personal);
+  }
+  return html;
+}
 function toggleTikkunKlali(){
   settings.tikkunKlali=!settings.tikkunKlali;saveSettings();
   syncPersonalButtons();
   if(sectionState['personal'])loadPersonalText();
+  refreshDailyTehillimIfPersonalPrepended();
 }
 function toggleTehillimWeekday(){
   settings.tehillimWeekday=!settings.tehillimWeekday;saveSettings();
   syncPersonalButtons();
   if(sectionState['personal'])loadPersonalText();
+  refreshDailyTehillimIfPersonalPrepended();
 }
 function syncPersonalButtons(){
   const k=document.getElementById('tk-klali-btn');
@@ -3528,6 +3579,14 @@ function refreshPersonalContent(){
   updatePersonalPsalmsRow();
   sectionLoaded['personal']=false;            // so a re-open reloads, not shows cached text
   if(sectionState['personal'])loadPersonalText();
+  refreshDailyTehillimIfPersonalPrepended();
+}
+function refreshDailyTehillimIfPersonalPrepended(){
+  if(sectionState['tehillim']&&settings.personalBeforeDailyTehillim){
+    loadTehillim().then(()=>afterSectionRender('tehillim'));
+  }else{
+    sectionLoaded['tehillim']=false;
+  }
 }
 
 // ── Backup / restore (all settings as a portable code) ──
@@ -3846,14 +3905,7 @@ async function loadPersonalText(){
   container.innerHTML='<div class="sk-lines"><span class="sk sk-line sk-t"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line"></span></div>';
   try{
     const target=new Date(localToday().getTime()+offset*86400000);
-    let html='';
-    if(showKlali)html+=await renderTikkunKlali();
-    if(showWeekday)html+=await renderWeekdayTehillim();
-    if(family.length)html+=await renderFamilyTehillim(target);
-    if(settings.personalPsalms.length){
-      if(showKlali||showWeekday||family.length)html+='<div class="tk-section-title">פרקים אישיים</div>';
-      html+=await renderPsalmRange(settings.personalPsalms);
-    }
+    const html=await renderPersonalTehillimContent(target);
     container.innerHTML=`<div style="font-size:calc(17px * var(--read-scale));line-height:1.9;font-family:var(--font-tanakh)">${html}</div>`;
   }catch(e){container.innerHTML=`<div class="loading">שגיאה: ${e.message}</div>`;}
 }
